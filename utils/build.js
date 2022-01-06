@@ -109,7 +109,7 @@ exports.build = async () => {
           </span>
         `;
       }
-
+      
       e = document.getElementById("name-block");
       e.innerHTML = dt.user.name ? dt.user.name : dt.user.login;
       e = document.getElementById("pf-img-container");
@@ -222,42 +222,48 @@ exports.build = async () => {
       }
 
       console.log(`❗ Adding [${cfg.infoLinks.length}] Info Links`);
-      if (dt.user.websiteUrl) {
-        cfg.infoLinks.unshift({
-          name: dt.user.websiteUrl.replace(/^https?:\/\//, ""),
-          link: dt.user.websiteUrl,
-        });
-      }
-      for (let i = 0; i < cfg.infoLinks.length; i++) {
-        var link = cfg.infoLinks[i].link;
-        if (!/^https?:\/\//i.test(link)) {
-          link = "https://" + link;
+      if (cfg.infoLinks.length > 0) {
+        if (dt.user.websiteUrl) {
+          cfg.infoLinks.unshift({
+            name: dt.user.websiteUrl.replace(/^https?:\/\//, ""),
+            link: dt.user.websiteUrl,
+          });
         }
-        e.innerHTML += `
-          <div>
-            <svg class="pf-info-icon icon-f">
-              <use xlink:href="assets/svg/svg-defs.svg#link" />
-            </svg>
-            <a href="${link}">
-              <span>${cfg.infoLinks[i].name}</span>
-            </a>
-          </div>
-        `;
+        for (let i = 0; i < cfg.infoLinks.length; i++) {
+          console.log(i)
+          var link = cfg.infoLinks[i].link;
+          if (!/^https?:\/\//i.test(link)) {
+            link = "https://" + link;
+          }
+          e.innerHTML += `
+            <div>
+              <svg class="pf-info-icon icon-f">
+                <use xlink:href="assets/svg/svg-defs.svg#link" />
+              </svg>
+              <a href="${link}">
+                <span>${cfg.infoLinks[i].name}</span>
+              </a>
+            </div>
+          `;
+        }
       }
 
       e = document.getElementById("readme");
+      if (dt.user.repository != null){
+        if (dt.user.repository.object != null) {
+          let mdProfileREADME = md.render(dt.user.repository.object.text);
+          // Append '?raw=true' to images hosted on GitHub
+          mdProfileREADME = mdProfileREADME.replace(
+            /\b(https:\/\/github\.com\/\S+(?:png|jpe?g|gif))\b/gim,
+            "$&" + "?raw=true"
+          );
 
-      let mdProfileREADME = md.render(dt.user.repository.object.text);
-      // Append '?raw=true' to images hosted on GitHub
-      mdProfileREADME = mdProfileREADME.replace(
-        /\b(https:\/\/github\.com\/\S+(?:png|jpe?g|gif))\b/gim,
-        "$&" + "?raw=true"
-      );
-
-      if (cfg.profileREADME == "enabled" && dt.user.repository != null) {
-        e.innerHTML = `
-          ${mdProfileREADME}
-        `;
+          if (cfg.profileREADME == "enabled" && dt.user.repository != null) {
+            e.innerHTML = `
+              ${mdProfileREADME}
+            `;
+          }
+        }
       }
 
       e = document.getElementById("repo-grid");
