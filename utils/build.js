@@ -9,11 +9,12 @@ const md = require("markdown-it")({
   linkify: true,
   typographer: true,
 });
-const { getAvatar } = require("./getAvatar");
+const { getImage } = require("./getImage");
 const { getData } = require("./getData");
 const options = {
   resources: "usable",
 };
+const sharp = require('sharp');
 
 function getRepos(x, y) {
   const repos = x.concat(y);
@@ -53,19 +54,46 @@ exports.build = async () => {
       process.exit(1);
     });
 
-  await getAvatar(cfg.avatar || dt.user.avatarUrl)
-    .then((buffer) => {
-      const ext = cfg.avatar ? path.extname(cfg.avatar).slice(1) : "png";
-      return fs.outputFile(`./dist/assets/${ext}/avatar.${ext}`, buffer);
-    })
-    .then(() => {
-      console.log("✔️ Copied avatar");
-    })
-    .catch((err) => {
-      console.log("⚠️ Failed!");
-      console.error("Error: " + err.message);
-      process.exit(1);
+  const repos = getRepos(
+    dt.user.pinnedItems.nodes,
+    dt.user.repositories.nodes
+  );
+
+  await fs.mkdir(path.join(__dirname, "..", "dist", "assets", "images"), {recursive: true});
+  
+  try{
+    let avatarBuffer = await getImage(cfg.avatar || dt.user.avatarUrl)
+    await sharp(avatarBuffer).toFile("./dist/assets/images/avatar.webp", (err) => {
+      if (err) console.log("Error: " + err);
     });
+    console.log("✔️ Copied avatar");
+  }
+  catch(err){
+    console.log("⚠️ Failed!");
+    console.error("Error: " + err.message);
+    process.exit(1);
+  }  
+
+  // Get social preview image and store it locally
+  for (i = 0; i < repos.length; i++) {
+    if (cfg.socialPreviewImage == "enabled" &&
+      repos[i].usesCustomOpenGraphImage == true) {
+      
+      try{
+        let imageBuffer = await getImage(repos[i].openGraphImageUrl);
+        await sharp(imageBuffer).toFile(
+          `./dist/assets/images/${repos[i].name}.webp`,
+          (err, info) => {
+            if (err) console.log("Error: " + err);
+          }
+        );
+
+      }
+      catch(err){
+        console.error(`Error fetching repository ${repos[i].name} social preview image!`);
+      }
+    }
+  }
 
   await fs
     .copy("./resource", "./dist")
@@ -86,10 +114,10 @@ exports.build = async () => {
 
       document.title = dt.user.name ? dt.user.name : cfg.username;
 
-      const avatarExt = cfg.avatar ? path.extname(cfg.avatar).slice(1) : "png";
-      const avatarPath = `assets/${avatarExt}/avatar.${avatarExt}`;
+      const avatarPath = `assets/images/avatar.webp`;
       document.head.innerHTML += `
         <link rel="icon" href="${avatarPath}">
+        <meta name="description" content="${dt.user.name}\'s portfolio website showcasing GitHub projects.">
       `;
 
       let e;
@@ -109,7 +137,7 @@ exports.build = async () => {
           </span>
         `;
       }
-      
+
       e = document.getElementById("name-block");
       e.innerHTML = dt.user.name ? dt.user.name : dt.user.login;
       e = document.getElementById("pf-img-container");
@@ -230,7 +258,6 @@ exports.build = async () => {
           });
         }
         for (let i = 0; i < cfg.infoLinks.length; i++) {
-          console.log(i)
           var link = cfg.infoLinks[i].link;
           if (!/^https?:\/\//i.test(link)) {
             link = "https://" + link;
@@ -248,54 +275,58 @@ exports.build = async () => {
         }
       }
 
-      e = document.getElementById("readme");
-      if (dt.user.repository != null){
-        if (dt.user.repository.object != null) {
-          let mdProfileREADME = md.render(dt.user.repository.object.text);
-          // Append '?raw=true' to images hosted on GitHub
-          mdProfileREADME = mdProfileREADME.replace(
-            /\b(https:\/\/github\.com\/\S+(?:png|jpe?g|gif))\b/gim,
-            "$&" + "?raw=true"
-          );
+      console.log(`❗ Adding README`);
+      if (cfg.profileREADME == "enabled" && dt.user.repository != null && dt.user.repository.object != null) {
+        e = document.getElementById("repo-block");
 
-          if (cfg.profileREADME == "enabled" && dt.user.repository != null) {
-            e.innerHTML = `
-              ${mdProfileREADME}
-            `;
-          }
-        }
+        readmeDiv = document.createElement("div");
+        readmeDiv.setAttribute("id", "readme");
+
+        let mdProfileREADME = md.render(dt.user.repository.object.text);
+        // Append '?raw=true' to images hosted on GitHub
+        mdProfileREADME = mdProfileREADME.replace(
+          /\b(https:\/\/github\.com\/\S+(?:png|jpe?g|gif))\b/gim,
+          "$&" + "?raw=true"
+        );
+
+        readmeDiv.innerHTML = `
+          ${mdProfileREADME}
+        `;
+
+        e.prepend(readmeDiv);
       }
 
       e = document.getElementById("repo-grid");
 
-      const repos = getRepos(
-        dt.user.pinnedItems.nodes,
-        dt.user.repositories.nodes
-      );
-
       for (i = 0; i < repos.length; i++) {
         e.innerHTML += `
           <div class="grid-item">
-            ${repos[i].primaryLanguage
-            ? `<div class="repo-lang"><span>${repos[i].primaryLanguage.name}</span></div>`
-            : ""
-          }
+            ${
+              repos[i].primaryLanguage
+                ? `<div class="repo-lang"><span>${repos[i].primaryLanguage.name}</span></div>`
+                : ""
+            }
             <div class="repo-about">
               <a href="${repos[i].url}">
                 <span class="repo-title">
-                  ${repos[i].isFork
-            ? `<svg class="icon-fork"><use xlink:href="assets/svg/svg-defs.svg#fork"></use></svg>`
-            : ""
-          }
+                  ${
+                    repos[i].isFork
+                      ? `<svg class="icon-fork"><use xlink:href="assets/svg/svg-defs.svg#fork"></use></svg>`
+                      : ""
+                  }
                   ${repos[i].name}
                 </span>
                 <span class="repo-desc">
-                ${cfg.socialPreviewImage == "enabled" &&
-            repos[i].usesCustomOpenGraphImage == true
-            ? `<img class="repo-socialprev-img" src="${repos[i].openGraphImageUrl}" alt="${repos[i].name} social preview image">`
-            : ""
-          }
-                ${repos[i].description ? repos[i].description : ""}</span>
+                ${
+                  cfg.socialPreviewImage == "enabled" && repos[i].usesCustomOpenGraphImage == true
+                    ? `<img class="repo-socialprev-img"
+                        src="assets/images/${repos[i].name}.webp"
+                        alt="${repos[i].name} social preview image"
+                        width="320" height="160">`
+                    : ""
+                }
+                ${repos[i].description ? repos[i].description : ""}
+                </span>
               </a>
             </div>
             <div class="repo-stats">

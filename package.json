@@ -9,11 +9,12 @@
   "author": "Shaan Subbaiah <shaansubbaiah.cs18@bmsce.ac.in>",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.21.1",
+    "axios": "^0.21.2",
     "dotenv": "^8.2.0",
     "fs-extra": "^9.0.1",
     "jsdom": "^16.2.2",
-    "markdown-it": "^12.0.4",
-    "pretty": "^2.0.0"
+    "markdown-it": "^12.3.2",
+    "pretty": "^2.0.0",
+    "sharp": "^0.30.2"
   }
 }
